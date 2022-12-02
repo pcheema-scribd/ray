@@ -149,6 +149,73 @@ class Batcher(BatcherInterface):
             batch = batch.slice(0, batch.num_rows(), copy=True)
         return batch
 
+class NodupBatcher(Batcher):
+    """Chunks blocks into batches."""
+
+    def __init__(self, batch_size: Optional[int], ensure_copy: bool = False):
+        """
+        Construct a batcher that yields batches of batch_sizes rows.
+
+        Args:
+            batch_size: The size of batches to yield.
+            ensure_copy: Whether batches are always copied from the underlying base
+                blocks (not zero-copy views).
+        """
+        super().__init__(batch_size=batch_size, ensure_copy=ensure_copy)
+
+    def next_batch(self) -> Block:
+        """Get the next batch from the block buffer.
+
+        Returns:
+            A batch represented as a Block.
+        """
+        assert self.has_batch() or (self._done_adding and self.has_any())
+        # If no batch size, short-circuit.
+        if self._batch_size is None:
+            assert len(self._buffer) == 1
+            block = self._buffer[0]
+            if self._ensure_copy:
+                # Copy block if needing to ensure fresh batch copy.
+                block = BlockAccessor.for_block(block)
+                block = block.slice(0, block.num_rows(), copy=True)
+            self._buffer = []
+            self._buffer_size = 0
+            return block
+        output = DelegatingBlockBuilder()
+        leftover = []
+        needed = self._batch_size
+        for block in self._buffer:
+            accessor = BlockAccessor.for_block(block)
+            if needed <= 0:
+                # We already have a full batch, so add this block to
+                # the leftovers.
+                leftover.append(block)
+            elif accessor.num_rows() <= needed:
+                # We need this entire block to fill out a batch.
+                # We need to call `accessor.slice()` to ensure
+                # the subsequent block's type are the same.
+                output.add_block(accessor.slice(0, accessor.num_rows(), copy=False))
+                needed -= accessor.num_rows()
+            else:
+                # We only need part of the block to fill out a batch.
+                output.add_block(accessor.slice(0, needed, copy=False))
+                # Add the rest of the block to the leftovers.
+                leftover.append(accessor.slice(needed, accessor.num_rows(), copy=False))
+                needed = 0
+
+        # Move the leftovers into the block buffer so they're the first
+        # blocks consumed on the next batch extraction.
+        self._buffer = leftover
+        self._buffer_size -= self._batch_size
+        batch = output.build()
+        if self._ensure_copy:
+            # Need to ensure that the batch is a fresh copy.
+            batch = BlockAccessor.for_block(batch)
+            # TOOD(Clark): This copy will often be unnecessary, e.g. for pandas
+            # DataFrame batches that have required concatenation to construct, which
+            # always requires a copy. We should elide this copy in those cases.
+            batch = batch.slice(0, batch.num_rows(), copy=True)
+        return batch
 
 class ShufflingBatcher(BatcherInterface):
     """Chunks blocks into shuffled batches, using a local in-memory shuffle buffer."""
