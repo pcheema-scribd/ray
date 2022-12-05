@@ -2621,6 +2621,74 @@ class Dataset(Generic[T]):
             for row in batch.iter_rows():
                 yield row
 
+    def iter_nodup_batches(
+        self,
+        *,
+        prefetch_blocks: int = 0,
+        batch_size: Optional[int] = 2,
+        batch_format: str = "default",
+        drop_last: bool = False,
+        local_shuffle_buffer_size: Optional[int] = None,
+        local_shuffle_seed: Optional[int] = None,
+    ) -> Iterator[BatchType]:
+        """Return a local batched iterator over the dataset.
+
+        Examples:
+            >>> import ray
+            >>> for batch in ray.data.range(1000000).iter_batches(): # doctest: +SKIP
+            ...     print(batch) # doctest: +SKIP
+
+        Time complexity: O(1)
+
+        Args:
+            prefetch_blocks: The number of blocks to prefetch ahead of the
+                current block during the scan.
+            batch_size: The number of rows in each batch, or None to use entire blocks
+                as batches (blocks may contain different number of rows).
+                The final batch may include fewer than ``batch_size`` rows if
+                ``drop_last`` is ``False``. Defaults to 256.
+            batch_format: The format in which to return each batch.
+                Specify "default" to use the default block format (promoting
+                tables to Pandas and tensors to NumPy), "pandas" to select
+                ``pandas.DataFrame``, "pyarrow" to select ``pyarrow.Table``, or "numpy"
+                to select ``numpy.ndarray`` for tensor datasets and
+                ``Dict[str, numpy.ndarray]`` for tabular datasets. Default is "default".
+            drop_last: Whether to drop the last batch if it's incomplete.
+            local_shuffle_buffer_size: If non-None, the data will be randomly shuffled
+                using a local in-memory shuffle buffer, and this value will serve as the
+                minimum number of rows that must be in the local in-memory shuffle
+                buffer in order to yield a batch. When there are no more rows to add to
+                the buffer, the remaining rows in the buffer will be drained.
+            local_shuffle_seed: The seed to use for the local random shuffle.
+
+        Returns:
+            An iterator over record batches.
+        """
+        if batch_format == "native":
+            warnings.warn(
+                "The 'native' batch format has been renamed 'default'.",
+                DeprecationWarning,
+            )
+
+        blocks = self._plan.execute()
+        stats = self._plan.stats()
+
+        time_start = time.perf_counter()
+
+        yield from batch_blocks(
+            blocks.iter_blocks(),
+            stats,
+            prefetch_blocks=prefetch_blocks,
+            batch_size=batch_size,
+            batch_format=batch_format,
+            drop_last=drop_last,
+            shuffle_buffer_min_size=local_shuffle_buffer_size,
+            shuffle_seed=local_shuffle_seed,
+            nodup=True
+        )
+
+        stats.iter_total_s.add(time.perf_counter() - time_start)
+
     def iter_batches(
         self,
         *,

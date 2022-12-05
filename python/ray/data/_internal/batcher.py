@@ -186,22 +186,20 @@ class NodupBatcher(Batcher):
         needed = self._batch_size
         for block in self._buffer:
             accessor = BlockAccessor.for_block(block)
+            accessor.random_shuffle(random_seed=42)
             if needed <= 0:
                 # We already have a full batch, so add this block to
                 # the leftovers.
                 leftover.append(block)
-            elif accessor.num_rows() <= needed:
-                # We need this entire block to fill out a batch.
-                # We need to call `accessor.slice()` to ensure
-                # the subsequent block's type are the same.
-                output.add_block(accessor.slice(0, accessor.num_rows(), copy=False))
-                needed -= accessor.num_rows()
             else:
-                # We only need part of the block to fill out a batch.
-                output.add_block(accessor.slice(0, needed, copy=False))
-                # Add the rest of the block to the leftovers.
-                leftover.append(accessor.slice(needed, accessor.num_rows(), copy=False))
-                needed = 0
+                tmp_buffer = []
+                for row in accessor.iter_rows():
+                    if needed <= 0:
+                        tmp_buffer.append(row)
+                    else:
+                        output.add(row)
+                        needed -= 1
+                leftover.append(tmp_buffer)
 
         # Move the leftovers into the block buffer so they're the first
         # blocks consumed on the next batch extraction.
