@@ -152,7 +152,7 @@ class Batcher(BatcherInterface):
 class NodupBatcher(Batcher):
     """Chunks blocks into batches."""
 
-    def __init__(self, batch_size: Optional[int], ensure_copy: bool = False):
+    def __init__(self, batch_size: Optional[int], ensure_copy: bool = False, nodup_cols:Optional[list] = None):
         """
         Construct a batcher that yields batches of batch_sizes rows.
 
@@ -162,6 +162,16 @@ class NodupBatcher(Batcher):
                 blocks (not zero-copy views).
         """
         super().__init__(batch_size=batch_size, ensure_copy=ensure_copy)
+        self._nodup_cols = nodup_cols
+
+    def add_item(self, item, batch_output, dupe_row_map):
+
+        for col in dupe_row_map:
+            if item[col] in dupe_row_map[col]:
+                return False
+            dupe_row_map[col].add(item[col])
+        batch_output.add(item)
+        return True
 
     def next_batch(self) -> Block:
         """Get the next batch from the block buffer.
@@ -184,6 +194,11 @@ class NodupBatcher(Batcher):
         output = DelegatingBlockBuilder()
         leftover = []
         needed = self._batch_size
+        dupe_row_map = {}
+
+        for col in self._nodup_cols:
+            dupe_row_map[col] = set()
+
         for block in self._buffer:
             accessor = BlockAccessor.for_block(block)
             accessor.random_shuffle(random_seed=42)
@@ -193,12 +208,14 @@ class NodupBatcher(Batcher):
                 leftover.append(block)
             else:
                 tmp_buffer = []
-                for row in accessor.iter_rows():
+                for item in accessor.iter_rows():
                     if needed <= 0:
-                        tmp_buffer.append(row)
+                        tmp_buffer.append(item)
                     else:
-                        output.add(row)
-                        needed -= 1
+                        if not self.add_item(item, output, dupe_row_map):
+                            tmp_buffer.append(item)
+                        else:
+                            needed -= 1
                 leftover.append(tmp_buffer)
 
         # Move the leftovers into the block buffer so they're the first
