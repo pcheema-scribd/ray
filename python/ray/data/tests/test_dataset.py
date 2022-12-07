@@ -1746,7 +1746,9 @@ def test_iter_batches_nodup(ray_start_regular_shared):
     ds = ray.data.from_pandas(dfs)
 
     # Default.
-    for batch, df in zip(ds.iter_nodup_batches(batch_size=None, batch_format="pandas"), dfs):
+    for batch, df in zip(
+        ds.iter_nodup_batches(batch_size=None, batch_format="pandas"), dfs
+    ):
         assert isinstance(batch, pd.DataFrame)
         assert batch.equals(df)
 
@@ -1765,20 +1767,20 @@ def test_iter_batches_nodup_check_repeats(ray_start_regular_shared):
         col2_batch_items = batch["two"].values
 
         if batch_cnt == 0:
-            assert(len(col1_batch_items) != len(set(col1_batch_items)))
-            assert(len(col2_batch_items) != len(set(col2_batch_items)))
+            assert len(col1_batch_items) != len(set(col1_batch_items))
+            assert len(col2_batch_items) != len(set(col2_batch_items))
         else:
-            assert (len(col1_batch_items) == len(set(col1_batch_items)))
-            assert (len(col2_batch_items) == len(set(col2_batch_items)))
+            assert len(col1_batch_items) == len(set(col1_batch_items))
+            assert len(col2_batch_items) == len(set(col2_batch_items))
 
         batch_cnt = batch_cnt + 1
 
     for batch in ds.iter_nodup_batches(batch_size=2, nodup_cols=["one", "two"]):
         col1_batch_items = batch["one"].values
-        assert(len(col1_batch_items) == len(set(col1_batch_items)))
+        assert len(col1_batch_items) == len(set(col1_batch_items))
 
         col2_batch_items = batch["two"].values
-        assert(len(col2_batch_items) == len(set(col2_batch_items)))
+        assert len(col2_batch_items) == len(set(col2_batch_items))
 
 
 def test_iter_batches_basic(ray_start_regular_shared):
