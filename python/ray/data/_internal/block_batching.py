@@ -6,7 +6,7 @@ import numpy as np
 
 import ray
 from ray.actor import ActorHandle
-from ray.data._internal.batcher import Batcher, ShufflingBatcher
+from ray.data._internal.batcher import Batcher, ShufflingBatcher, NodupBatcher
 from ray.data._internal.stats import DatasetPipelineStats, DatasetStats
 from ray.data.block import Block, BlockAccessor
 from ray.data.context import DatasetContext
@@ -40,6 +40,7 @@ def batch_blocks(
     drop_last: bool = False,
     shuffle_buffer_min_size: Optional[int] = None,
     shuffle_seed: Optional[int] = None,
+    nodup_cols: Optional[list] = None,
 ) -> Iterator[BatchType]:
     """Create batches of data from 1 or more blocks.
 
@@ -68,6 +69,7 @@ def batch_blocks(
             number of rows that must be in the local in-memory shuffle buffer in order
             to yield a batch.
         shuffle_seed: The seed to use for the local random shuffle.
+        nodup_cols: list of cols that need to be deduped
 
     Returns:
         An iterator over record batches.
@@ -78,6 +80,8 @@ def batch_blocks(
             shuffle_buffer_min_size=shuffle_buffer_min_size,
             shuffle_seed=shuffle_seed,
         )
+    elif nodup_cols:
+        batcher = NodupBatcher(batch_size=batch_size, nodup_cols=nodup_cols)
     else:
         batcher = Batcher(batch_size=batch_size)
 
