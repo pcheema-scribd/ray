@@ -149,10 +149,16 @@ class Batcher(BatcherInterface):
             batch = batch.slice(0, batch.num_rows(), copy=True)
         return batch
 
+
 class NodupBatcher(Batcher):
     """Chunks blocks into batches."""
 
-    def __init__(self, batch_size: Optional[int], ensure_copy: bool = False, nodup_cols:Optional[list] = None):
+    def __init__(
+        self,
+        batch_size: Optional[int],
+        ensure_copy: bool = False,
+        nodup_cols: Optional[list] = None,
+    ):
         """
         Construct a batcher that yields batches of batch_sizes rows.
 
@@ -231,6 +237,7 @@ class NodupBatcher(Batcher):
             # always requires a copy. We should elide this copy in those cases.
             batch = batch.slice(0, batch.num_rows(), copy=True)
         return batch
+
 
 class ShufflingBatcher(BatcherInterface):
     """Chunks blocks into shuffled batches, using a local in-memory shuffle buffer."""

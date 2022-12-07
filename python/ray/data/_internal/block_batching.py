@@ -40,7 +40,7 @@ def batch_blocks(
     drop_last: bool = False,
     shuffle_buffer_min_size: Optional[int] = None,
     shuffle_seed: Optional[int] = None,
-    nodup_cols:Optional[list] = None
+    nodup_cols: Optional[list] = None,
 ) -> Iterator[BatchType]:
     """Create batches of data from 1 or more blocks.
 
