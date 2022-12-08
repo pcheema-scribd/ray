@@ -1850,7 +1850,7 @@ def test_iter_batches_nodup_check_repeats_with_history(ray_start_regular_shared)
         col1_batch_items = batch["one"].values
         col2_batch_items = batch["two"].values
 
-        print(batch)
+        # print(batch)
 
         if batch_cnt == 0:
             expected_one = [1, 3]
