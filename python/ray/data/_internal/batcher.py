@@ -158,6 +158,7 @@ class NodupBatcher(Batcher):
         batch_size: Optional[int],
         ensure_copy: bool = False,
         nodup_cols: Optional[list] = None,
+        nodup_history_col: Optional[str] = None,
     ):
         """
         Construct a batcher that yields batches of batch_sizes rows.
@@ -169,8 +170,20 @@ class NodupBatcher(Batcher):
         """
         super().__init__(batch_size=batch_size, ensure_copy=ensure_copy)
         self._nodup_cols = nodup_cols
+        self._nodup_history_col = nodup_history_col
 
-    def add_item(self, item, batch_output, dupe_row_map):
+    @staticmethod
+    def add_item(item, batch_output, dupe_row_map, item_history_cache, history_col):
+        if history_col:
+            item_history = set(item[history_col].tolist())
+            item_history.discard(0)  # remove padding
+
+            if item_history_cache[history_col].intersection(item_history):
+                return False
+            else:
+                item_history_cache[history_col] = item_history_cache[history_col].union(
+                    item[history_col]
+                )
 
         for col in dupe_row_map:
             if item[col] in dupe_row_map[col]:
@@ -201,6 +214,10 @@ class NodupBatcher(Batcher):
         leftover = []
         needed = self._batch_size
         dupe_row_map = {}
+        item_history_cache = None
+
+        if self._nodup_history_col:
+            item_history_cache = {self._nodup_history_col: set()}
 
         for col in self._nodup_cols:
             dupe_row_map[col] = set()
@@ -218,7 +235,13 @@ class NodupBatcher(Batcher):
                     if needed <= 0:
                         tmp_buffer.append(item)
                     else:
-                        if not self.add_item(item, output, dupe_row_map):
+                        if not NodupBatcher.add_item(
+                            item,
+                            output,
+                            dupe_row_map,
+                            item_history_cache,
+                            self._nodup_history_col,
+                        ):
                             tmp_buffer.append(item)
                         else:
                             needed -= 1

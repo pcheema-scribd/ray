@@ -41,6 +41,7 @@ def batch_blocks(
     shuffle_buffer_min_size: Optional[int] = None,
     shuffle_seed: Optional[int] = None,
     nodup_cols: Optional[list] = None,
+    nodup_history_col: Optional[str] = None,
 ) -> Iterator[BatchType]:
     """Create batches of data from 1 or more blocks.
 
@@ -70,6 +71,7 @@ def batch_blocks(
             to yield a batch.
         shuffle_seed: The seed to use for the local random shuffle.
         nodup_cols: list of cols that need to be deduped
+        nodup_history_col: shared history should not be part of a single batch
 
     Returns:
         An iterator over record batches.
@@ -81,7 +83,11 @@ def batch_blocks(
             shuffle_seed=shuffle_seed,
         )
     elif nodup_cols:
-        batcher = NodupBatcher(batch_size=batch_size, nodup_cols=nodup_cols)
+        batcher = NodupBatcher(
+            batch_size=batch_size,
+            nodup_cols=nodup_cols,
+            nodup_history_col=nodup_history_col,
+        )
     else:
         batcher = Batcher(batch_size=batch_size)
 
