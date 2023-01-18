@@ -1783,6 +1783,87 @@ def test_iter_batches_nodup_check_repeats(ray_start_regular_shared):
         assert len(col2_batch_items) == len(set(col2_batch_items))
 
 
+def test_iter_batches_nodup_check_repeats_with_history(ray_start_regular_shared):
+    df1 = pd.DataFrame(
+        {
+            "one": [1, 2, 3],
+            "two": [2, 3, 4],
+            "history": [
+                np.array([1, 2, 0]),
+                np.array([2, 3, 0]),
+                np.array([22, 23, 0]),
+            ],
+        }
+    )
+    df2 = pd.DataFrame(
+        {
+            "one": [4, 5, 6],
+            "two": [5, 6, 7],
+            "history": [np.array([4, 5, 0]), np.array([6, 7, 0]), np.array([8, 9, 0])],
+        }
+    )
+    df3 = pd.DataFrame(
+        {
+            "one": [7, 8, 9],
+            "two": [8, 9, 10],
+            "history": [
+                np.array([10, 11, 0]),
+                np.array([12, 13, 0]),
+                np.array([14, 15, 0]),
+            ],
+        }
+    )
+    df4 = pd.DataFrame(
+        {
+            "one": [10, 11, 12],
+            "two": [11, 12, 13],
+            "history": [
+                np.array([16, 17, 0]),
+                np.array([18, 19, 0]),
+                np.array([20, 21, 0]),
+            ],
+        }
+    )
+    dfs = [df1, df2, df3, df4]
+    ds = ray.data.from_pandas(dfs)
+
+    batch_cnt = 0
+    for batch in ds.iter_batches(batch_size=2):
+        col1_batch_items = batch["one"].values
+        col2_batch_items = batch["two"].values
+
+        if batch_cnt == 0:
+            expected_one = [1, 2]
+            expected_two = [2, 3]
+            assert all([i == j for i, j in zip(col1_batch_items, expected_one)])
+            assert all([i == j for i, j in zip(col2_batch_items, expected_two)])
+        else:
+            assert len(col1_batch_items) == len(set(col1_batch_items))
+            assert len(col2_batch_items) == len(set(col2_batch_items))
+
+        batch_cnt = batch_cnt + 1
+
+    batch_cnt = 0
+    for batch in ds.iter_nodup_batches(
+        batch_size=2, nodup_cols=["one", "two"], nodup_history_col="history"
+    ):
+        col1_batch_items = batch["one"].values
+        col2_batch_items = batch["two"].values
+
+        # print(batch)
+
+        if batch_cnt == 0:
+            expected_one = [1, 3]
+            expected_two = [2, 4]
+            assert all([i == j for i, j in zip(col1_batch_items, expected_one)])
+            assert all([i == j for i, j in zip(col2_batch_items, expected_two)])
+        else:
+            assert len(col1_batch_items) == len(set(col1_batch_items))
+            assert len(col2_batch_items) == len(set(col2_batch_items))
+
+        batch_cnt = batch_cnt + 1
+
+
 def test_iter_batches_basic(ray_start_regular_shared):
     df1 = pd.DataFrame({"one": [1, 2, 3], "two": [2, 3, 4]})
     df2 = pd.DataFrame({"one": [4, 5, 6], "two": [5, 6, 7]})

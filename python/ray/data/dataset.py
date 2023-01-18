@@ -2628,6 +2628,7 @@ class Dataset(Generic[T]):
         local_shuffle_buffer_size: Optional[int] = None,
         local_shuffle_seed: Optional[int] = None,
         nodup_cols: Optional[list] = None,
+        nodup_history_col: Optional[list] = None,
     ) -> Iterator[BatchType]:
         """Return a local batched iterator over the dataset.
 
@@ -2659,6 +2660,7 @@ class Dataset(Generic[T]):
                 the buffer, the remaining rows in the buffer will be drained.
             local_shuffle_seed: The seed to use for the local random shuffle.
             nodup_cols: list of cols that need to be deduped
+            nodup_history_col: shared history should not be part of a single batch
 
         Returns:
             An iterator over record batches.
@@ -2684,6 +2686,7 @@ class Dataset(Generic[T]):
             shuffle_buffer_min_size=local_shuffle_buffer_size,
             shuffle_seed=local_shuffle_seed,
             nodup_cols=nodup_cols,
+            nodup_history_col=nodup_history_col,
         )
 
         stats.iter_total_s.add(time.perf_counter() - time_start)
